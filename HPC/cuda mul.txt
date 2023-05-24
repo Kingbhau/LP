@@ -1,0 +1,65 @@
+#include <stdio.h>
+
+#define N 3  // Matrix size
+
+// CUDA kernel for matrix multiplication
+__global__ void matrixMul(int* a, int* b, int* c, int n) {
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (row < n && col < n) {
+        int sum = 0;
+        for (int k = 0; k < n; ++k) {
+            sum += a[row * n + k] * b[k * n + col];
+        }
+        c[row * n + col] = sum;
+    }
+}
+
+int main() {
+    int a[N][N], b[N][N], c[N][N];
+    int* dev_a, *dev_b, *dev_c;
+
+    // Initialize matrices a and b with random values
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            a[i][j] = rand() % 10;
+            b[i][j] = rand() % 10;
+        }
+    }
+
+    // Allocate memory on the device (GPU)
+    cudaMalloc((void**)&dev_a, N * N * sizeof(int));
+    cudaMalloc((void**)&dev_b, N * N * sizeof(int));
+    cudaMalloc((void**)&dev_c, N * N * sizeof(int));
+
+    // Copy input matrices from host to device memory
+    cudaMemcpy(dev_a, a, N * N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_b, b, N * N * sizeof(int), cudaMemcpyHostToDevice);
+
+    // Define grid and block dimensions
+    dim3 blockDims(5, 5);
+    dim3 gridDims((N + blockDims.x - 1) / blockDims.x, (N + blockDims.y - 1) / blockDims.y);
+
+    // Launch the kernel
+    matrixMul<<<gridDims, blockDims>>>(dev_a, dev_b, dev_c, N);
+
+    // Copy the result matrix from device to host memory
+    cudaMemcpy(c, dev_c, N * N * sizeof(int), cudaMemcpyDeviceToHost);
+
+    // Print the result matrix
+    printf("Result matrix:\n");
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            printf("%d\t", c[i][j]);
+        }
+        printf("\n");
+    }
+
+    // Free device memory
+    cudaFree(dev_a);
+    cudaFree(dev_b);
+    cudaFree(dev_c);
+
+    return 0;
+}
